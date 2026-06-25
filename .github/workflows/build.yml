@@ -1,0 +1,35 @@
+name: Build SenseVoice NoAVX v2
+on: [push, workflow_dispatch]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        repository: FunAudioLLM/SenseVoice
+        submodules: recursive
+    - name: Install deps
+      run: sudo apt-get update && sudo apt-get install -y cmake build-essential
+    - name: Configure (Strict NoAVX)
+      run: |
+        cd runtime/llama.cpp
+        # 強制使用最保守的指令集
+        export CFLAGS="-march=x86-64 -mtune=generic -mno-sse3 -mno-ssse3 -mno-sse4.1 -mno-sse4.2"
+        export CXXFLAGS="-march=x86-64 -mtune=generic -mno-sse3 -mno-ssse3 -mno-sse4.1 -mno-sse4.2"
+        cmake -B build \
+          -DGGML_NATIVE=OFF \
+          -DGGML_AVX=OFF -DGGML_AVX2=OFF \
+          -DGGML_FMA=OFF -DGGML_F16C=OFF \
+          -DCMAKE_C_FLAGS="$CFLAGS" \
+          -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
+          -DLLAMA_BUILD_TESTS=OFF \
+          -DLLAMA_BUILD_EXAMPLES=OFF \
+          -DLLAMA_BUILD_TOOLS=ON
+    - name: Build
+      run: |
+        cd runtime/llama.cpp
+        cmake --build build -j$(nproc) --target llama-funasr-sensevoice
+    - uses: actions/upload-artifact@v4
+      with:
+        name: llama-funasr-sensevoice-noavx-v2
+        path: runtime/llama.cpp/build/bin/llama-funasr-sensevoice
